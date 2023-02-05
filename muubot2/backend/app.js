@@ -5,6 +5,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 
 const userRoutes = require("./routes/user");
+const queueRoutes = require("./routes/queue");
 
 const app = express();
 mongoose
@@ -37,5 +38,6 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 app.use("/api/user", userRoutes);
+app.use("/api/queue", queueRoutes);
 
 module.exports = app;
