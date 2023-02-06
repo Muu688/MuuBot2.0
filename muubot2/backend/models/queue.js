@@ -3,6 +3,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 
 const queueSchema = mongoose.Schema({
   date: { type: Date, default: Date.now },
+  listresets: { type: Number, default: 0 },
   users: [
     {
       twitchUsername: { type: String, required: true },

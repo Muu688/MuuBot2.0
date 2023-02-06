@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Queue = require("../models/queue");
 const Status = require("../helper/status");
+const TwitchUser = require("../models/user");
 
 const {
   createLogger,
@@ -20,19 +21,32 @@ const logger = createLogger({
 exports.updateQueue = async (req, res, next) => {
   try {
     const twitchUsername = req.body.twitchUsername;
-    const todaysDate = new Date().toISOString().slice(0, 10);
+    let todaysDate = new Date();
+
+    // check if today is not a Wednesday
+    if (todaysDate.getDay() !== 3) {
+      // find the next Wednesday
+      let nextWednesday = new Date(todaysDate);
+      nextWednesday.setDate(
+        todaysDate.getDate() + ((3 - todaysDate.getDay() + 7) % 7)
+      );
+      todaysDate = nextWednesday.toISOString().slice(0, 10);
+    } else {
+      todaysDate = todaysDate.toISOString().slice(0, 10);
+    }
 
     let queue = await Queue.findOne({ todaysDate });
+
     if (!queue) {
       queue = new Queue({
-        date: new Date().toISOString().slice(0, 10),
+        date: todaysDate,
         users: [
           {
             twitchUsername,
           },
         ],
       });
-    } else {
+    } else if (await canQueue(queue, twitchUsername)) {
       queue.users = [
         ...queue.users,
         {
@@ -40,6 +54,11 @@ exports.updateQueue = async (req, res, next) => {
           time: new Date().toLocaleTimeString(),
         },
       ];
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: `User ${twitchUsername} is already in queue or has exceeded their runs`,
+      });
     }
 
     const savedQueue = await queue.save();
@@ -74,6 +93,7 @@ exports.updateStatus = async (req, res) => {
         user.twitchUsername === twitchUsername &&
         user.status === Status.IN_QUEUE
     );
+
     if (userIndex === -1) {
       logger.info(
         `User ${twitchUsername} not found in queue for date: ${date} or cannot be updated as the users status is in an endstate.`
@@ -106,8 +126,16 @@ exports.updateStatus = async (req, res) => {
 
 exports.getQueue = async (req, res) => {
   try {
-    const date = req.params.date || new Date().toISOString().slice(0, 10);
-
+    let date = req.params.date || new Date().toISOString().slice(0, 10);
+    let currentDay = new Date(date).getUTCDay();
+    if (currentDay !== 3) {
+      let daysUntilNextWednesday = (3 - currentDay + 7) % 7;
+      date = new Date(
+        new Date(date).getTime() + daysUntilNextWednesday * 86400000
+      )
+        .toISOString()
+        .slice(0, 10);
+    }
     const queue = await Queue.findOne({ date });
 
     if (!queue) {
@@ -129,3 +157,41 @@ exports.getQueue = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+
+async function canQueue(queue, twitchUsername) {
+  let hasExceededWeeklyRunsCheck;
+  try {
+    let user = await TwitchUser.findOne({ twitchUsername });
+    if (!user) {
+      user = new TwitchUser({ twitchUsername });
+      user.save();
+    }
+
+    const isAlreadyInQueue = queue.users.some(
+      (user) =>
+        user.twitchUsername === twitchUsername &&
+        user.status === Status.IN_QUEUE
+    );
+
+    const twitchUsernameCount = queue.users.filter(
+      (user) => user.twitchUsername === twitchUsername && user.status === Status.DONE
+    ).length;
+
+    // Change below to check occurrances of "DONE" or "AFK"(?)
+    const hasExceededWeeklyRuns = (twitchUsernameCount >= (queue.listresets + 1));
+    if (hasExceededWeeklyRuns && !user.secondRunCount > 0) {
+      hasExceededWeeklyRunsCheck = true;
+    } else if (!isAlreadyInQueue) {
+      // Update the users second run count by subtracting it, as it is implicit that they want to use their second run.
+      // This logic could be moved out of there to the calling function (updateQueue)
+      hasExceededWeeklyRunsCheck = false;
+      user.secondRunCount = user.secondRunCount - 1;
+      await user.save();
+    }
+
+    return !isAlreadyInQueue && !hasExceededWeeklyRunsCheck;
+  } catch (err) {
+    logger.error(`Error checking if user can queue ${err.message}`);
+    return false;
+  }
+}

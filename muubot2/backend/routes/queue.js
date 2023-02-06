@@ -12,4 +12,7 @@ router.post('/updateStatus', [
     check('twitchUsername').not().isEmpty().withMessage('Twitch username is required'),
   ], QueueController.updateStatus);
 
+
+router.get('/', QueueController.getQueue);
+
 module.exports = router;
