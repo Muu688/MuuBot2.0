@@ -173,12 +173,12 @@ async function canQueue(queue, twitchUsername) {
         user.status === Status.IN_QUEUE
     );
 
-    const twitchUsernameCount = queue.users.filter(
-      (user) => user.twitchUsername === twitchUsername && user.status === Status.DONE
-    ).length;
+    const twitchUsernameCount = await countUsernameStatus(
+      twitchUsername,
+      queue
+    );
 
-    // Change below to check occurrances of "DONE" or "AFK"(?)
-    const hasExceededWeeklyRuns = (twitchUsernameCount >= (queue.listresets + 1));
+    const hasExceededWeeklyRuns = twitchUsernameCount >= queue.listresets + 1;
     if (hasExceededWeeklyRuns && !user.secondRunCount > 0) {
       hasExceededWeeklyRunsCheck = true;
     } else if (!isAlreadyInQueue) {
@@ -194,4 +194,25 @@ async function canQueue(queue, twitchUsername) {
     logger.error(`Error checking if user can queue ${err.message}`);
     return false;
   }
+}
+
+async function countUsernameStatus(username, queue) {
+  let count = 0;
+
+  if (!queue) {
+    return count;
+  }
+
+  queue.users.forEach((user) => {
+    if (
+      user.twitchUsername === username &&
+      (user.status === Status.AFK ||
+        user.status === Status.DONE ||
+        user.status === Status.DID_NOT_COMPLETE)
+    ) {
+      count++;
+    }
+  });
+
+  return count;
 }
