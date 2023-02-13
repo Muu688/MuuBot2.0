@@ -6,7 +6,7 @@ const mongoose = require("mongoose");
 
 const userRoutes = require("./routes/user");
 const queueRoutes = require("./routes/queue");
-const wrcRoutes = require("./routes/weeklyruncount");
+// const wrcRoutes = require("./routes/weeklyruncount");
 
 const app = express();
 mongoose
@@ -40,6 +40,6 @@ app.use(bodyParser.urlencoded({ extended: false }));
 
 app.use("/api/user", userRoutes);
 app.use("/api/queue", queueRoutes);
-app.use("/api/wrc", wrcRoutes);
+// app.use("/api/wrc", wrcRoutes);
 
 module.exports = app;
