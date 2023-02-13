@@ -10,7 +10,7 @@ const queueRoutes = require("./routes/queue");
 
 const app = express();
 mongoose
-  .connect(`mongodb://localhost:27017/muubot`)
+  .connect(process.env.DB_URI)
   .then(() => {
     console.log("DB Connection successful");
   })
