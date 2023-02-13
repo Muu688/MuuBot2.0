@@ -46,6 +46,7 @@ exports.updateQueue = async (req, res, next) => {
           },
         ],
       });
+      getUser(twitchUsername)
     } else if (await canQueue(queue, twitchUsername)) {
       queue.users = [
         ...queue.users,
@@ -77,9 +78,21 @@ exports.updateQueue = async (req, res, next) => {
 exports.updateStatus = async (req, res) => {
   try {
     const { twitchUsername, status } = req.body;
-    const date = req.params.date || new Date().toISOString().slice(0, 10);
+    let todaysDate = new Date();
 
-    const queue = await Queue.findOne({ date });
+    // check if today is not a Wednesday
+    if (todaysDate.getDay() !== 3) {
+      // find the next Wednesday
+      let nextWednesday = new Date(todaysDate);
+      nextWednesday.setDate(
+        todaysDate.getDate() + ((3 - todaysDate.getDay() + 7) % 7)
+      );
+      todaysDate = nextWednesday.toISOString().slice(0, 10);
+    } else {
+      todaysDate = todaysDate.toISOString().slice(0, 10);
+    }
+
+    const queue = await Queue.findOne({ todaysDate });
     if (!queue) {
       logger.info(`Queue for date: ${date} was not found.`);
       return res.status(404).json({
@@ -161,11 +174,7 @@ exports.getQueue = async (req, res) => {
 async function canQueue(queue, twitchUsername) {
   let hasExceededWeeklyRunsCheck;
   try {
-    let user = await TwitchUser.findOne({ twitchUsername });
-    if (!user) {
-      user = new TwitchUser({ twitchUsername });
-      user.save();
-    }
+    let user = await getUser(twitchUsername);
 
     const isAlreadyInQueue = queue.users.some(
       (user) =>
@@ -194,6 +203,15 @@ async function canQueue(queue, twitchUsername) {
     logger.error(`Error checking if user can queue ${err.message}`);
     return false;
   }
+}
+
+async function getUser(twitchUsername) {
+  let user = await TwitchUser.findOne({ twitchUsername });
+  if (!user) {
+    user = new TwitchUser({ twitchUsername, runHistory: [], secondRunCount: 0 });
+    user.save();
+  }
+  return user;
 }
 
 async function countUsernameStatus(username, queue) {

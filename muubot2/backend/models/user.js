@@ -4,7 +4,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 const userSchema = new mongoose.Schema({
   twitchUsername: { type: String, required: [true, 'Twitch username is required'], unique: true },
   runHistory: { type: [String], default: [] },
-  secondRunCount: { type: Number, min: 0, default: 0 },
+  secondRunCount: { type: Number, default: 0 },
 }, {
   timestamps: true
 });
